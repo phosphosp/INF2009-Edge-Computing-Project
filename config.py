@@ -81,5 +81,20 @@ MQTT_TOPIC_STATUS = os.getenv(
 
 MQTT_STATUS_INTERVAL = 10 # seconds between heartbeat publishes
 
+# Simulation Settings
+# Path to the JSON flag file written by the simulation GUI
+# main.py reads this file each loop iteration
+SIM_FLAG_FILE = os.getenv("SIM_FLAG_FILE", "/tmp/fire_sim_flags.json")
+
+# Default flag state (used if file is missing or unreadable)
+SIM_DEFAULT_FLAGS = {
+    "fire_sim": False, # full fire scenario (gas + temp + vision)
+    "gas_only_sim": False, # only MQ2 triggered
+    "temp_only_sim": False, # only DHT22 triggered
+    "manual_alarm": False, # force alarm on regardless of score
+    "manual_lock": False, # force door locked regardless of state
+    "manual_unlock": False, # force door unlocked regardless of state
+}
+
 # Main Loop
 LOOP_INTERVAL = 0.1 # seconds - main loop polling rate (100 ms)
