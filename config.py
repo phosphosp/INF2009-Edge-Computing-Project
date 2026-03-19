@@ -61,5 +61,25 @@ FIRE_THRESHOLD = 0.5 # score >= this triggers fire response
 # Without vision: max possible = 0.6 (gas + temp)
 # Tune down to 0.4 to trigger on gas alone if needed
 
+# MQTT CONFIGURATION
+MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
+MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "fire_detection_pi")
+
+# Topic handling (supports BASE or direct override)
+BASE_TOPIC = os.getenv("MQTT_BASE_TOPIC", "fire_detection")
+
+MQTT_TOPIC_EVENTS = os.getenv(
+    "MQTT_TOPIC_EVENTS",
+    f"{BASE_TOPIC}/events"
+)
+
+MQTT_TOPIC_STATUS = os.getenv(
+    "MQTT_TOPIC_STATUS",
+    f"{BASE_TOPIC}/status"
+)
+
+MQTT_STATUS_INTERVAL = 10 # seconds between heartbeat publishes
+
 # Main Loop
 LOOP_INTERVAL = 0.1 # seconds - main loop polling rate (100 ms)
