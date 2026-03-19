@@ -38,6 +38,8 @@ INF2009-Edge-Computing-Project/
 
 ![Breadboard Wiring Diagram](readme_images/wiring.png)
 
+![Physical Raspberry Pi Image](readme_images/RPI_irl.png)
+
 | Component     | Signal        | GPIO (BCM) | Physical Pin |
 |---------------|---------------|------------|--------------|
 | MQ2           | DO            | GPIO 17    | Pin 11       |

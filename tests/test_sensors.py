@@ -4,6 +4,7 @@
 import time
 import sys
 import os
+import config
 
 # Allow running from tests folder
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,17 +23,26 @@ temp = TempSensor()
 print("\nWaiting 3s for DHT22 first read...\n")
 time.sleep(3)
 
+print(f"Note: MQ2 warmup period is {config.GAS_WARMUP_SEC}s - gas readings suppressed until complete\n")
+
 try:
     while True:
         g = gas.read()
         t = temp.read()
 
+        # Gas warmup tag
+        gas_tag = f"[WARMING UP {g['warmup_elapsed_sec']}s/{config.GAS_WARMUP_SEC}s]" \
+                  if g['warming_up'] else "[READY]"
+
         print(
-            f"GAS -> raw={g['raw']}  detected={g['detected']}  "
-            f"consec={g['consec_count']}   |   "
-            f"TEMP -> {t['temp']}°C  avg={t['avg_temp']}  "
-            f"flagged={t['flagged']}  warmup={t['warming_up']}"
+            f"GAS  {gas_tag} -> raw={g['raw']}  detected={g['detected']}  "
+            f"consec={g['consec_count']}"
         )
+        print(
+            f"TEMP -> {t['temp']}°C  avg={t['avg_temp']}  "
+            f"flagged={t['flagged']}  warmup={t['warming_up']}\n"
+        )
+
         time.sleep(0.5)
 
 except KeyboardInterrupt:

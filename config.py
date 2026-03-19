@@ -32,11 +32,12 @@ TEMP_READ_INTERVAL = 2 # seconds between DHT22 reads
 TEMP_WARMUP_READS = 3 # ignore first N reads on startup
 TEMP_AVG_SAMPLES = 3 # rolling average window size
 TEMP_HIGH_COUNT_REQ = 3 # consecutive high readings before flagging
-TEMP_ON_THRESHOLD = 31.6 # °C - trigger if avg exceeds this
-TEMP_OFF_THRESHOLD = 31.3 # °C - clear flag when avg drops below this
+TEMP_ON_THRESHOLD = 31.6 # °C - trigger if avg exceeds this (should be 35 for real fire)
+TEMP_OFF_THRESHOLD = 31.3 # °C - clear flag when avg drops below this (should be 34.5 for real fire)
 
 # MQ2 Gas Sensor Settings
 GAS_CONSECUTIVE_REQ = 2 # consecutive positive reads before flagging (debounce against single-sample noise)
+GAS_WARMUP_SEC = 20 # seconds to preheat MQ2 before readings are trusted (per datasheet)
 
 # Buzzer Settings
 BUZZ_FREQ = 1000 # Hz
