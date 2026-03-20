@@ -36,6 +36,8 @@ INF2009-Edge-Computing-Project/
 
 ## Hardware Pin Reference (BCM / Physical)
 
+![Raspberry Pi Pinout](readme_images/RPI_pinout.png)
+
 ![Breadboard Wiring Diagram](readme_images/wiring.png)
 
 ![Physical Raspberry Pi Image](readme_images/RPI_irl.png)
