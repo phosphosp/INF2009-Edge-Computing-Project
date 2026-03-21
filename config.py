@@ -1,7 +1,12 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load environment from project root first, then cloud/aws/.env as a fallback.
+# This keeps edge scripts/tests and cloud docker settings consistent when running locally.
+_ROOT_DIR = Path(__file__).resolve().parent
+load_dotenv(_ROOT_DIR / ".env")
+load_dotenv(_ROOT_DIR / "cloud" / "aws" / ".env", override=False)
 
 # Single source of truth for all pins, thresholds, and timing
 # All other modules import from here
@@ -63,9 +68,15 @@ FIRE_THRESHOLD = 0.5 # score >= this triggers fire response
 # Tune down to 0.4 to trigger on gas alone if needed
 
 # MQTT CONFIGURATION
-MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
+# Accept MQTT_BROKER (edge/app convention) or MQTT_HOST (cloud compose convention).
+MQTT_BROKER = os.getenv("MQTT_BROKER") or os.getenv("MQTT_HOST", "host.docker.internal")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "fire_detection_pi")
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
+MQTT_TLS_ENABLED = os.getenv("MQTT_TLS_ENABLED", "false").lower() in ("1", "true", "yes")
+MQTT_CA_CERT = os.getenv("MQTT_CA_CERT", "")
+MQTT_TLS_INSECURE = os.getenv("MQTT_TLS_INSECURE", "false").lower() in ("1", "true", "yes")
 
 # Topic handling (supports BASE or direct override)
 BASE_TOPIC = os.getenv("MQTT_BASE_TOPIC", "fire_detection")

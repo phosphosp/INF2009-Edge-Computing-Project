@@ -31,6 +31,20 @@ class MQTTClient:
         # Callbacks
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
+        
+        # Optional auth/TLS settings for cloud brokers
+        if config.MQTT_USERNAME:
+            self._client.username_pw_set(
+                username=config.MQTT_USERNAME,
+                password=config.MQTT_PASSWORD or None,
+            )
+
+        if config.MQTT_TLS_ENABLED:
+            tls_kwargs = {}
+            if config.MQTT_CA_CERT:
+                tls_kwargs["ca_certs"] = config.MQTT_CA_CERT
+            self._client.tls_set(**tls_kwargs)
+            self._client.tls_insecure_set(config.MQTT_TLS_INSECURE)
 
         # Start paho's background network loop (non-blocking)
         self._client.loop_start()

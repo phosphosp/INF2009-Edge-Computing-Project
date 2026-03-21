@@ -166,3 +166,22 @@ result = evaluate_with_vision(gas_detected, temp_flagged, vision_conf)
 
 Import `evaluate_with_vision` from `utils.fusion` - the function already exists,
 weights are already allocated, no other changes needed.
+
+---
+
+## Cloud Dashboard Deployment (AWS)
+
+Cloud logging + visualisation stack is available in:
+
+- `cloud/aws`
+
+It deploys:
+
+- Mosquitto (cloud MQTT ingestion)
+- Telegraf (MQTT -> time-series pipeline)
+- InfluxDB (logging storage)
+- Grafana (dashboard)
+
+See setup guide:
+
+- `cloud/aws/README.md`
