@@ -23,6 +23,7 @@ ACCENT_FIRE = "#f38ba8"
 ACCENT_WARN = "#fab387"
 ACCENT_OK = "#a6e3a1"
 ACCENT_BLUE = "#89b4fa"
+ACCENT_PURPLE = "#cba6f7"
 BTN_ACTIVE = "#313244"
 BORDER = "#45475a"
 
@@ -80,7 +81,7 @@ class SimGUI:
         self._scenario_btn(scenario_frame, "Full Fire", "fire", ACCENT_FIRE, 0, 0)
         self._scenario_btn(scenario_frame, "Gas Only", "gas_only", ACCENT_WARN, 0, 1)
         self._scenario_btn(scenario_frame, "Temp Only", "temp_only", ACCENT_BLUE, 1, 0)
-        self._scenario_btn(scenario_frame, "Clear", "clear", ACCENT_OK,   1, 1)
+        self._scenario_btn(scenario_frame, "Clear", "clear", ACCENT_OK, 1, 1)
 
         self._divider()
 
@@ -96,6 +97,34 @@ class SimGUI:
             override_frame, "Lock Door", self._toggle_lock, ACCENT_BLUE, 1)
         self.btn_unlock = self._toggle_btn(
             override_frame, "Unlock Door", self._toggle_unlock, ACCENT_OK, 2)
+
+        self._divider()
+
+        # Reset section
+        self._section_label("ALARM LATCH")
+
+        reset_frame = tk.Frame(self.root, bg=BG)
+        reset_frame.pack(fill="x", padx=16, pady=(0, 8))
+
+        tk.Button(
+            reset_frame,
+            text="Reset Alarm",
+            font=self.font_btn,
+            bg=BG_CARD, fg=ACCENT_PURPLE,
+            activebackground=BTN_ACTIVE,
+            activeforeground=ACCENT_PURPLE,
+            relief="flat",
+            bd=0,
+            padx=12, pady=8,
+            cursor="hand2",
+            command=self._reset_alarm
+        ).pack(fill="x")
+
+        tk.Label(
+            reset_frame,
+            text="Clears fire latch once sensors are safe",
+            font=self.font_small, bg=BG, fg=FG_DIM
+        ).pack(pady=(2, 0))
 
         self._divider()
 
@@ -180,6 +209,11 @@ class SimGUI:
         self._active_scenario.set(scenario)
         print(f"[SimGUI] Scenario: {scenario}")
 
+    def _reset_alarm(self):
+        """Send a one-shot reset pulse to main.py to clear the fire latch"""
+        set_flag("manual_reset", True)
+        print("[SimGUI] Reset alarm latch requested")
+
     def _toggle_alarm(self):
         self._alarm_on = not self._alarm_on
         set_flag("manual_alarm", self._alarm_on)
@@ -255,7 +289,7 @@ if __name__ == "__main__":
 
     # Centre window on screen
     root.update_idletasks()
-    w, h = 420, 520
+    w, h = 420, 580
     x = (root.winfo_screenwidth() // 2) - (w // 2)
     y = (root.winfo_screenheight() // 2) - (h // 2)
     root.geometry(f"{w}x{h}+{x}+{y}")

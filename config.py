@@ -95,6 +95,7 @@ SIM_DEFAULT_FLAGS = {
     "manual_alarm": False, # force alarm on regardless of score
     "manual_lock": False, # force door locked regardless of state
     "manual_unlock": False, # force door unlocked regardless of state
+    "manual_reset": False, # reset fire latch - clears FIRE state when sensors are safe
 }
 
 # Main Loop

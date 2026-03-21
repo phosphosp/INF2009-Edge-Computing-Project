@@ -6,8 +6,8 @@
 #   3. Each tick:
 #       a. Read sensors (gas instant, temp from cache)
 #       b. Apply sim flags via fusion engine
-#       c. Decide alarm state from FusionResult
-#       d. Apply manual overrides (force alarm/lock/unlock)
+#       c. Decide alarm state from FusionResult (with fire latch)
+#       d. Apply manual overrides (force alarm/lock/unlock/reset)
 #       e. Update smart door (RFID poll + fire mode sync)
 #       f. Publish MQTT event (on change) + status (on interval)
 #       g. Log to console
@@ -34,7 +34,7 @@ from actuators.alarm import Alarm, AlarmState
 from actuators.smart_door import SmartDoor
 from comms.mqtt_client import MQTTClient
 from utils.fusion import evaluate, FireDecision
-from sim.sim_flags import get_all as get_sim_flags
+from sim.sim_flags import get_all as get_sim_flags, set_flag
 
 # Shutdown handler
 _shutdown_requested = False
@@ -51,13 +51,14 @@ signal.signal(signal.SIGTERM, _handle_signal)
 # How many loop ticks between console log lines (avoid spamming terminal)
 LOG_EVERY_N_TICKS = 10 # 10 ticks × 100ms = log every ~1 second
 
-def _log(tick: int, result, door_state: str, door_event):
+def _log(tick: int, result, door_state: str, door_event, alarm_latched: bool):
     if tick % LOG_EVERY_N_TICKS != 0:
         return
 
     sim_tag = f" [SIM:{','.join(result.active_sim_flags)}]" if result.sim_active else ""
     door_tag = f" DOOR:{door_state}"
     event_tag = f" RFID:{door_event}" if door_event else ""
+    latch_tag = " [LATCHED]" if alarm_latched else ""
 
     print(
         f"[{time.strftime('%H:%M:%S')}] "
@@ -66,7 +67,7 @@ def _log(tick: int, result, door_state: str, door_event):
         f"gas={result.gas_detected}  "
         f"temp={result.temp_flagged}  "
         f"avg={f'{result.raw_avg_temp:.1f}C' if result.raw_avg_temp else 'N/A':<8}"
-        f"{door_tag}{event_tag}{sim_tag}"
+        f"{door_tag}{event_tag}{latch_tag}{sim_tag}"
     )
 
 # Main
@@ -89,6 +90,11 @@ def main():
 
     start_time = time.time()
     tick = 0
+
+    # Fire latch state
+    # Once FIRE is triggered, alarm holds until manual_reset is pressed
+    # even if sensors clear. WARNING clears freely.
+    _alarm_latched = False
 
     print("\n[Main] System ready. Entering main loop.")
     print("[Main] Press Ctrl+C to stop.\n")
@@ -116,51 +122,64 @@ def main():
             # Attach raw avg_temp for logging/MQTT (fusion doesn't read it directly)
             result.raw_avg_temp = avg_temp
 
-            # 3. Drive alarm from fusion decision
-            if result.decision == FireDecision.FIRE:
-                alarm.set_state(AlarmState.FIRE)
+            # 3. Load sim flags early - needed for latch reset and overrides
+            flags = get_sim_flags()
 
+            # 4. Handle manual reset - clears fire latch if sensors are now safe
+            # Auto-clears the flag after consuming it so it acts as a one-shot pulse
+            if flags.get("manual_reset"):
+                if result.decision != FireDecision.FIRE and not flags.get("manual_alarm"):
+                    _alarm_latched = False
+                    print("[Main] Fire latch reset - system returning to normal")
+                else:
+                    print("[Main] Reset ignored - fire condition still active")
+                set_flag("manual_reset", False)
+
+            # 5. Latch fire state
+            # Once FIRE is reached, hold it until manually reset
+            if result.decision == FireDecision.FIRE:
+                _alarm_latched = True
+
+            # 6. Drive alarm from fusion decision + latch
+            if _alarm_latched:
+                alarm.set_state(AlarmState.FIRE)
             elif result.decision == FireDecision.WARNING:
                 alarm.set_state(AlarmState.WARNING)
-
             else:
                 alarm.set_state(AlarmState.CLEAR)
 
-            # 4. Apply manual overrides from sim GUI
+            # 7. Apply manual overrides from sim GUI
             # These bypass the score - direct hardware control for demos
-            flags = get_sim_flags()
-
             if flags.get("manual_alarm"):
                 alarm.set_state(AlarmState.FIRE)
 
             if flags.get("manual_lock"):
                 door.force_lock()
-
             elif flags.get("manual_unlock"):
                 door.force_unlock()
 
-            # 5. Sync smart door fire mode with current decision
-            # Fire mode = FIRE decision OR manual_alarm override active
+            # 8. Sync smart door fire mode with current decision
+            # Fire mode = latched FIRE OR manual_alarm override active
             fire_active = (
-                result.decision == FireDecision.FIRE
+                _alarm_latched
                 or flags.get("manual_alarm", False)
             )
             door.set_fire_mode(fire_active)
 
-            # 6. Poll RFID + get door event (non-blocking)
+            # 9. Poll RFID + get door event (non-blocking)
             door_result = door.update()
             door_event = door_result.get("event")   # None | "authorised" | "unauthorised"
             door_state = door_result["door_state"]
 
-            # 7. Publish MQTT
+            # 10. Publish MQTT
             uptime = time.time() - start_time
             mqtt.publish_event(result, door_state)
             mqtt.publish_status(result, door_state, uptime)
 
-            # 8. Console log (throttled)
-            _log(tick, result, door_state, door_event)
+            # 11. Console log (throttled)
+            _log(tick, result, door_state, door_event, _alarm_latched)
 
-            # 9. Maintain loop timing
+            # 12. Maintain loop timing
             elapsed = time.time() - loop_start
             sleep_time = config.LOOP_INTERVAL - elapsed
             if sleep_time > 0:
