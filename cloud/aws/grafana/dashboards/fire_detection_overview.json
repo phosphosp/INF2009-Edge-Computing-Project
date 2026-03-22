@@ -54,8 +54,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
+        "h": 4,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -78,7 +78,7 @@
             "type": "influxdb",
             "uid": "Fire InfluxDB"
           },
-          "query": "from(bucket: \"fire_events\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> last()",
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
           "refId": "A"
         }
       ],
@@ -92,17 +92,318 @@
       },
       "fieldConfig": {
         "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Decision"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CLEAR": {
+                        "color": "green",
+                        "text": "CLEAR"
+                      },
+                      "WARNING": {
+                        "color": "yellow",
+                        "text": "WARNING"
+                      },
+                      "FIRE": {
+                        "color": "red",
+                        "text": "FIRE"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "Fire InfluxDB"
+          },
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"decision\"])\n  |> rename(columns: {_time: \"Time\", decision: \"Decision\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Current Decision",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "Fire InfluxDB"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Gas"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "green",
+                        "text": "NO"
+                      },
+                      "true": {
+                        "color": "red",
+                        "text": "YES"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Temp"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "green",
+                        "text": "NO"
+                      },
+                      "true": {
+                        "color": "red",
+                        "text": "YES"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sim"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "green",
+                        "text": "OFF"
+                      },
+                      "true": {
+                        "color": "yellow",
+                        "text": "ON"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "Fire InfluxDB"
+          },
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"gas_detected\", \"temp_flagged\", \"sim_active\"])\n  |> rename(columns: {_time: \"Time\", gas_detected: \"Gas\", temp_flagged: \"Temp\", sim_active: \"Sim\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Sensor Flags",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "Fire InfluxDB"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Door State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "LOCKED": {
+                        "color": "green",
+                        "text": "LOCKED"
+                      },
+                      "UNLOCKED": {
+                        "color": "yellow",
+                        "text": "UNLOCKED"
+                      },
+                      "OPEN": {
+                        "color": "red",
+                        "text": "OPEN"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "Fire InfluxDB"
+          },
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"door_state\"])\n  |> rename(columns: {_time: \"Time\", door_state: \"Door State\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Door State",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "Fire InfluxDB"
+      },
+      "fieldConfig": {
+        "defaults": {
           "color": {
             "mode": "palette-classic"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Avg Temp"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "displayName",
+                "value": "Avg Temp"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Fire Score"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "custom.axisSoftMin",
+                "value": 0
+              },
+              {
+                "id": "custom.axisSoftMax",
+                "value": 1
+              },
+              {
+                "id": "displayName",
+                "value": "Fire Score"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
-        "w": 16,
-        "x": 8,
-        "y": 0
+        "w": 24,
+        "x": 0,
+        "y": 4
       },
       "id": 2,
       "options": {
@@ -123,7 +424,7 @@
             "type": "influxdb",
             "uid": "Fire InfluxDB"
           },
-          "query": "from(bucket: \"fire_events\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")",
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> set(key: \"_field\", value: \"Fire Score\")",
           "refId": "A"
         },
         {
@@ -131,7 +432,7 @@
             "type": "influxdb",
             "uid": "Fire InfluxDB"
           },
-          "query": "from(bucket: \"fire_events\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"raw_avg_temp\")",
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"raw_avg_temp\")\n  |> set(key: \"_field\", value: \"Avg Temp\")",
           "refId": "B"
         }
       ],
@@ -155,7 +456,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "id": 3,
       "options": {
@@ -176,7 +477,7 @@
             "type": "influxdb",
             "uid": "Fire InfluxDB"
           },
-          "query": "from(bucket: \"fire_events\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r.type == \"event\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [\"decision\"])\n  |> count()",
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [\"decision\"])\n  |> count()\n  |> keep(columns: [\"decision\", \"_value\"])\n  |> rename(columns: {_value: \"Count\"})",
           "refId": "A"
         }
       ],
@@ -207,7 +508,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 12
       },
       "id": 4,
       "options": {
@@ -226,7 +527,7 @@
             "type": "influxdb",
             "uid": "Fire InfluxDB"
           },
-          "query": "from(bucket: \"fire_events\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r.type == \"event\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> keep(columns: [\"_time\", \"_value\", \"decision\", \"door_state\", \"gas_detected\", \"temp_flagged\"])\n  |> rename(columns: {_time: \"Time\", _value: \"FireScore\", decision: \"Decision\", door_state: \"DoorState\", gas_detected: \"Gas\", temp_flagged: \"Temp\"})",
+          "query": "from(bucket: \"fire_events\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"fire_detection\")\n  |> filter(fn: (r) => r._field == \"fire_score\")\n  |> group(columns: [])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 20)\n  |> keep(columns: [\"_time\", \"_value\", \"decision\", \"door_state\", \"gas_detected\", \"temp_flagged\"])\n  |> rename(columns: {_time: \"Time\", _value: \"FireScore\", decision: \"Decision\", door_state: \"DoorState\", gas_detected: \"Gas\", temp_flagged: \"Temp\"})",
           "refId": "A"
         }
       ],
@@ -252,6 +553,6 @@
   "timezone": "",
   "title": "Fire Detection Overview",
   "uid": "fire-detection-overview",
-  "version": 1,
+  "version": 4,
   "weekStart": ""
 }

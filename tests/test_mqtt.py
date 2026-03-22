@@ -43,56 +43,97 @@ print(f"Connected: {mqtt.connected}\n")
 start_time = time.time()
 
 # Helper: build a mock FusionResult
-def make_result(decision, score, gas, temp, sim=False):
+def make_result(
+    decision,
+    score,
+    gas,
+    temp,
+    sim=False,
+    vision=0.0,
+    raw_avg_temp=28.5,
+    sim_flags=None,
+):
     return FusionResult(
         decision = decision,
         fire_score = score,
         gas_detected = gas,
         temp_flagged = temp,
-        vision_confidence = 0.0,
+        vision_confidence = vision,
         raw_gas_detected = gas,
         raw_temp_flagged = temp,
-        raw_avg_temp = 28.5,
+        raw_avg_temp = raw_avg_temp,
         sim_active = sim,
-        active_sim_flags = ["fire_sim"] if sim else [],
+        active_sim_flags = sim_flags if sim_flags is not None else (["fire_sim"] if sim else []),
     )
 
-# Test 1: CLEAR state
-print("Publishing CLEAR event...")
-r = make_result(FireDecision.CLEAR, 0.0, False, False)
+# Events: cover decision states, threshold-like scores, door states, sim flags, and varied sensor values
+event_scenarios = [
+    ("CLEAR baseline", make_result(FireDecision.CLEAR, 0.0, False, False, raw_avg_temp=26.2), "LOCKED"),
+    ("WARNING temp-only boundary", make_result(FireDecision.WARNING, 0.2, False, True, raw_avg_temp=31.6), "LOCKED"),
+    ("WARNING gas-only", make_result(FireDecision.WARNING, 0.4, True, False, raw_avg_temp=29.4), "LOCKED"),
+    ("FIRE gas+temp threshold", make_result(FireDecision.FIRE, 0.5, True, True, raw_avg_temp=35.2), "UNLOCKED"),
+    ("FIRE high confidence vision", make_result(FireDecision.FIRE, 0.98, True, True, vision=0.95, raw_avg_temp=68.8), "OPEN"),
+    (
+        "FIRE simulation",
+        make_result(
+            FireDecision.FIRE,
+            0.9,
+            True,
+            True,
+            sim=True,
+            vision=0.9,
+            raw_avg_temp=58.1,
+            sim_flags=["fire_sim"],
+        ),
+        "UNLOCKED",
+    ),
+    (
+        "WARNING simulated gas-only",
+        make_result(
+            FireDecision.WARNING,
+            0.4,
+            True,
+            False,
+            sim=True,
+            raw_avg_temp=30.4,
+            sim_flags=["gas_only_sim"],
+        ),
+        "LOCKED",
+    ),
+]
+
+for label, result, door_state in event_scenarios:
+    print(f"Publishing event: {label} ...")
+    mqtt._last_decision = None  # force event publish so every scenario is emitted
+    mqtt.publish_event(result, door_state=door_state)
+    time.sleep(0.4)
+
+# Explicit dedup check (same decision twice without reset should skip second publish)
+print("Publishing dedup check (second WARNING should be skipped)...")
+r = make_result(FireDecision.WARNING, 0.4, True, False, raw_avg_temp=30.0)
+mqtt._last_decision = None
 mqtt.publish_event(r, door_state="LOCKED")
-time.sleep(0.5)
-
-# Test 2: WARNING state (dedup check - publish once not twice)
-print("Publishing WARNING event (should publish once)...")
-r = make_result(FireDecision.WARNING, 0.4, True, False)
 mqtt.publish_event(r, door_state="LOCKED")
-mqtt.publish_event(r, door_state="LOCKED") # same decision - should be skipped
-time.sleep(0.5)
+time.sleep(0.4)
 
-# Test 3: FIRE state
-print("Publishing FIRE event...")
-r = make_result(FireDecision.FIRE, 0.6, True, True)
-mqtt.publish_event(r, door_state="UNLOCKED")
-time.sleep(0.5)
+# Status heartbeats: cover different payload combinations and uptimes
+status_scenarios = [
+    make_result(FireDecision.CLEAR, 0.0, False, False, raw_avg_temp=27.1),
+    make_result(FireDecision.WARNING, 0.4, True, False, raw_avg_temp=30.5),
+    make_result(FireDecision.FIRE, 0.9, True, True, vision=0.8, raw_avg_temp=55.0),
+]
 
-# Test 4: Simulated fire
-print("Publishing simulated FIRE event...")
-r = make_result(FireDecision.CLEAR, 0.0, False, False) # reset decision
-mqtt._last_decision = None # force republish
-r = make_result(FireDecision.FIRE, 0.9, True, True, sim=True)
-mqtt.publish_event(r, door_state="UNLOCKED")
-time.sleep(0.5)
-
-# Test 5: Status heartbeat
-print("Publishing status heartbeat...")
-mqtt._last_status_time = 0 # force immediate publish
-r = make_result(FireDecision.FIRE, 0.9, True, True)
-mqtt.publish_status(r, door_state="UNLOCKED",
-                    uptime_seconds=time.time() - start_time)
-time.sleep(0.5)
+for idx, result in enumerate(status_scenarios, start=1):
+    print(f"Publishing status heartbeat {idx}/{len(status_scenarios)} ...")
+    mqtt._last_status_time = 0  # force immediate publish every loop
+    mqtt.publish_status(
+        result,
+        door_state="UNLOCKED" if result.decision == FireDecision.FIRE else "LOCKED",
+        uptime_seconds=(time.time() - start_time) + (idx * 123.4),
+    )
+    time.sleep(0.4)
 
 mqtt.cleanup()
 
 print()
-print("Done. Check your mosquitto_sub terminal for 4 event messages + 1 status.")
+print("Done. Check your mosquitto_sub terminal for expanded event + status coverage.")
