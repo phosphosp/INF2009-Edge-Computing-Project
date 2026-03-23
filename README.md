@@ -16,7 +16,8 @@ INF2009-Edge-Computing-Project/
 │   └── smart_door.py              # RFID reader + servo (normal / fire modes)
 │
 ├── utils/
-│   └── fusion.py                  # Weighted score engine + sim override injection
+│   ├── fusion.py                  # Weighted score engine + sim override injection
+│   └── latency_logger.py          # Loop-stage timing logger (console + CSV)
 │
 ├── comms/
 │   └── mqtt_client.py             # Non-blocking MQTT publisher
@@ -30,6 +31,12 @@ INF2009-Edge-Computing-Project/
 │   ├── test_actuators.py
 │   ├── test_fusion.py
 │   └── test_mqtt.py
+│
+├── logs/
+│   └── latency_log.csv            # Runtime latency measurements
+│
+└── cloud/
+    └── aws/                       # Dockerized cloud pipeline + dashboard
 ```
 
 ---
@@ -120,6 +127,22 @@ python test_actuators.py    # LED, buzzer, servo, RFID only
 python test_fusion.py       # scoring logic, no hardware needed
 python test_mqtt.py         # MQTT publish/subscribe
 ```
+
+### Latency logging
+Latency logging is enabled in `main.py` via `LatencyLogger()` and records stage timings every loop tick.
+
+- CSV output: `logs/latency_log.csv`
+- Console summary: printed every ~5 seconds (throttled)
+- Loop budget target: 100ms (`budget_ok=True/False` in CSV)
+
+Logged stages:
+
+- `gas_read`
+- `temp_read`
+- `fusion`
+- `actuation`
+- `mqtt_publish`
+- `total_loop_ms`
 
 ---
 
