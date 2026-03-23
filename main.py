@@ -34,6 +34,7 @@ from actuators.alarm import Alarm, AlarmState
 from actuators.smart_door import SmartDoor
 from comms.mqtt_client import MQTTClient
 from utils.fusion import evaluate, FireDecision
+from utils.latency_logger import LatencyLogger
 from sim.sim_flags import get_all as get_sim_flags, set_flag
 
 # Shutdown handler
@@ -88,6 +89,9 @@ def main():
     print("[Main] Initialising MQTT...")
     mqtt = MQTTClient()
 
+    print("[Main] Initialising latency logger...")
+    logger = LatencyLogger()
+
     start_time = time.time()
     tick = 0
 
@@ -102,8 +106,11 @@ def main():
     # Main loop
     try:
         while not _shutdown_requested:
+
+            # Latency tracking start
             loop_start = time.time()
             tick += 1
+            logger.start()
 
             # 1. Read sensors
             gas_data  = gas.read()
@@ -113,6 +120,12 @@ def main():
             temp_flagged = temp_data["flagged"]
             avg_temp = temp_data["avg_temp"]
 
+            logger.mark("gas_read") # includes both gas + temp (both are fast/cached)
+
+            # temp_read mark is separated for clarity even though TempSensor.read()
+            # is non-blocking (returns cached value from background thread)
+            logger.mark("temp_read")
+
             # 2. Fusion - compute fire score + apply sim overrides
             result = evaluate(
                 gas_detected = gas_detected,
@@ -121,6 +134,8 @@ def main():
             )
             # Attach raw avg_temp for logging/MQTT (fusion doesn't read it directly)
             result.raw_avg_temp = avg_temp
+
+            logger.mark("fusion")
 
             # 3. Load sim flags early - needed for latch reset and overrides
             flags = get_sim_flags()
@@ -171,15 +186,22 @@ def main():
             door_event = door_result.get("event")   # None | "authorised" | "unauthorised"
             door_state = door_result["door_state"]
 
+            logger.mark("actuation")
+
             # 10. Publish MQTT
             uptime = time.time() - start_time
             mqtt.publish_event(result, door_state)
             mqtt.publish_status(result, door_state, uptime)
 
+            logger.mark("mqtt_publish")
+
             # 11. Console log (throttled)
             _log(tick, result, door_state, door_event, _alarm_latched)
 
-            # 12. Maintain loop timing
+            # 12. Finish latency tick (writes CSV row, throttled console print)
+            logger.finish()
+
+            # 13. Maintain loop timing
             elapsed = time.time() - loop_start
             sleep_time = config.LOOP_INTERVAL - elapsed
             if sleep_time > 0:
@@ -221,6 +243,11 @@ def main():
 
         try:
             mqtt.cleanup()
+        except Exception:
+            pass
+
+        try:
+            logger.cleanup()
         except Exception:
             pass
 
