@@ -48,7 +48,7 @@ class LatencyLogger:
             self._csv_writer.writerow([
                 "tick", "timestamp",
                 "gas_read_ms", "temp_read_ms", "fusion_ms",
-                "actuation_ms", "mqtt_publish_ms",
+                "vision_ms", "actuation_ms", "mqtt_publish_ms",
                 "total_loop_ms", "budget_ok"
             ])
 
@@ -100,14 +100,18 @@ class LatencyLogger:
 
         # Write CSV row
         if self._csv_writer:
+            from datetime import datetime as _dt
+            now = _dt.now()
+            ts = now.strftime("%H:%M:%S:") + f"{now.microsecond // 1000:03d}"
             self._csv_writer.writerow([
                 self._tick,
-                time.strftime("%H:%M:%S"),
-                round(self._marks.get("gas_read",     0.0), 3),
-                round(self._marks.get("temp_read",    0.0), 3),
-                round(self._marks.get("fusion",       0.0), 3),
-                round(self._marks.get("actuation",    0.0), 3),
-                round(self._marks.get("mqtt_publish", 0.0), 3),
+                ts,
+                round(self._marks.get("gas_read",      0.0), 3),
+                round(self._marks.get("temp_read",     0.0), 3),
+                round(self._marks.get("fusion",        0.0), 3),
+                round(self._marks.get("vision",        0.0), 3),
+                round(self._marks.get("actuation",     0.0), 3),
+                round(self._marks.get("mqtt_publish",  0.0), 3),
                 round(total_ms, 3),
                 budget_ok,
             ])
@@ -136,6 +140,7 @@ class LatencyLogger:
         print(f"  gas_read     : {_fmt('gas_read')}")
         print(f"  temp_read    : {_fmt('temp_read')}")
         print(f"  fusion       : {_fmt('fusion')}")
+        print(f"  vision       : {_fmt('vision')}")
         print(f"  actuation    : {_fmt('actuation')}")
         print(f"  mqtt_publish : {_fmt('mqtt_publish')}")
 

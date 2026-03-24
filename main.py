@@ -23,6 +23,7 @@ import time
 import signal
 import sys
 import os
+from datetime import datetime
 
 # Allow running from root folder
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -52,23 +53,34 @@ signal.signal(signal.SIGTERM, _handle_signal)
 # How many loop ticks between console log lines (avoid spamming terminal)
 LOG_EVERY_N_TICKS = 10 # 10 ticks × 100ms = log every ~1 second
 
+def _now_ms() -> str:
+    """Return current time as HH:MM:SS:mmm"""
+    now = datetime.now()
+    return now.strftime('%H:%M:%S:') + f"{now.microsecond // 1000:03d}"
+
 def _log(tick: int, result, door_state: str, door_event, alarm_latched: bool):
     if tick % LOG_EVERY_N_TICKS != 0:
         return
 
-    sim_tag = f" [SIM:{','.join(result.active_sim_flags)}]" if result.sim_active else ""
-    door_tag = f" DOOR:{door_state}"
-    event_tag = f" RFID:{door_event}" if door_event else ""
-    latch_tag = " [LATCHED]" if alarm_latched else ""
+    avg_str   = f"{result.raw_avg_temp:.1f}C" if result.raw_avg_temp else "N/A"
+    latch_str = "  LATCHED" if alarm_latched else ""
+    sim_str   = f"  SIM:{','.join(result.active_sim_flags)}" if result.sim_active else ""
+    rfid_str  = f"  rfid:{door_event}" if door_event else ""
 
+    # Line 1: time, decision, score, vision, latch/sim flags
     print(
-        f"[{time.strftime('%H:%M:%S')}] "
-        f"{result.decision.value:<8} "
-        f"score={result.fire_score:.2f}  "
-        f"gas={result.gas_detected}  "
-        f"temp={result.temp_flagged}  "
-        f"avg={f'{result.raw_avg_temp:.1f}C' if result.raw_avg_temp else 'N/A':<8}"
-        f"{door_tag}{event_tag}{latch_tag}{sim_tag}"
+        f"[{_now_ms()}] {result.decision.value:<8} "
+        f"score={result.fire_score:.2f}  vision={result.vision_confidence:.2f}"
+        f"{latch_str}{sim_str}"
+    )
+    # Line 2: indented sensor readings and door state
+    print(
+        f"             "
+        f"gas={str(result.gas_detected):<6}"
+        f"temp={str(result.temp_flagged):<6}"
+        f"avg={avg_str:<8}"
+        f"door={door_state}"
+        f"{rfid_str}"
     )
 
 # Main
@@ -136,6 +148,9 @@ def main():
             result.raw_avg_temp = avg_temp
 
             logger.mark("fusion")
+
+            # Vision mark - always 0.0 until Jetson TCP client is integrated
+            logger.mark("vision")
 
             # 3. Load sim flags early - needed for latch reset and overrides
             flags = get_sim_flags()
