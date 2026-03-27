@@ -126,17 +126,16 @@ def main():
 
             # 1. Read sensors
             gas_data  = gas.read()
+
+            logger.mark("gas_read")
+
             temp_data = temp.read()
+
+            logger.mark("temp_read")
 
             gas_detected = gas_data["detected"]
             temp_flagged = temp_data["flagged"]
             avg_temp = temp_data["avg_temp"]
-
-            logger.mark("gas_read") # includes both gas + temp (both are fast/cached)
-
-            # temp_read mark is separated for clarity even though TempSensor.read()
-            # is non-blocking (returns cached value from background thread)
-            logger.mark("temp_read")
 
             # 2. Fusion - compute fire score + apply sim overrides
             result = evaluate(
