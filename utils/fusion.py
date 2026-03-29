@@ -153,6 +153,21 @@ def evaluate(
         temp_flagged = True
         vision_confidence = 0.0
 
+    # HARD TRIGGER: If vision is > 80% sure, force a FIRE state immediately
+    if vision_confidence >= 0.8:
+        return FusionResult(
+            decision=FireDecision.FIRE,
+            fire_score=1.0,
+            gas_detected=gas_detected,
+            temp_flagged=temp_flagged,
+            vision_confidence=vision_confidence,
+            raw_gas_detected=raw_gas,
+            raw_temp_flagged=raw_temp,
+            raw_avg_temp=None, 
+            sim_active=sim_active,
+            active_sim_flags=active_flags,
+        )
+
     # Compute weighted score
     score = 0.0
     if gas_detected:

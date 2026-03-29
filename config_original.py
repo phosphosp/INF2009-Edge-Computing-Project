@@ -59,9 +59,9 @@ AUTHORISED_CARDS = [c.strip() for c in _raw_cards.split(",") if c.strip()]
 
 # Fusion / Scoring Weights
 # Must sum to 1.0. Adjust based on sensor reliability in your environment
-WEIGHT_GAS = 0.2     # Reduce other sensor influence
-WEIGHT_TEMP = 0.1    
-WEIGHT_VISION = 0.7  # Increased - Vision is now "The Boss"
+WEIGHT_GAS = 0.4     # Reduce other sensor influence
+WEIGHT_TEMP = 0.2    
+WEIGHT_VISION = 0.4  # Increased - Vision is now "The Boss"
 
 FIRE_THRESHOLD = 0.4 # Reduced from 0.5 (Easier to trigger)
 # Without vision: max possible = 0.6 (gas + temp)
@@ -69,7 +69,9 @@ FIRE_THRESHOLD = 0.4 # Reduced from 0.5 (Easier to trigger)
 
 # MQTT CONFIGURATION
 # Accept MQTT_BROKER (edge/app convention) or MQTT_HOST (cloud compose convention).
-MQTT_BROKER = os.getenv("MQTT_BROKER") or os.getenv("MQTT_HOST", "localhost")
+# MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
+MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
+
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "fire_detection_pi")
 MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
@@ -115,4 +117,4 @@ SIM_DEFAULT_FLAGS = {
 }
 
 # Main Loop
-LOOP_INTERVAL = 0.02 # seconds - main loop polling rate (20 ms)
+LOOP_INTERVAL = 0.1 # seconds - main loop polling rate (100 ms)

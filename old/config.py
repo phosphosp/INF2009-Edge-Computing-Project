@@ -1,3 +1,4 @@
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -69,7 +70,7 @@ FIRE_THRESHOLD = 0.4 # Reduced from 0.5 (Easier to trigger)
 
 # MQTT CONFIGURATION
 # Accept MQTT_BROKER (edge/app convention) or MQTT_HOST (cloud compose convention).
-MQTT_BROKER = os.getenv("MQTT_BROKER") or os.getenv("MQTT_HOST", "localhost")
+MQTT_BROKER = os.getenv("MQTT_BROKER") or os.getenv("MQTT_HOST", "host.docker.internal")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "fire_detection_pi")
 MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
@@ -115,4 +116,4 @@ SIM_DEFAULT_FLAGS = {
 }
 
 # Main Loop
-LOOP_INTERVAL = 0.02 # seconds - main loop polling rate (20 ms)
+LOOP_INTERVAL = 0.1 # seconds - main loop polling rate (100 ms)

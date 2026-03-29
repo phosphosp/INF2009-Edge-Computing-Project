@@ -77,9 +77,10 @@ for i in range(N_RUNS):
 
     payload = json.dumps({"confidence": 1.0, "t_sent": time.time()})
     try:
-        mqtt_client.publish(MQTT_TOPIC, payload)
+        mqtt_client.publish(MQTT_TOPIC, payload, qos=1)
     except Exception:
         pass
+    time.sleep(0.05)  # 50ms gap so Pi can process each message
     mqtt_done = time.perf_counter()
 
     capture_times.append((capture_done - loop_start) * 1000)

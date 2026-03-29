@@ -2,7 +2,7 @@
 
 # Startup order:
 #   1. Initialise all hardware (sensors, actuators, comms)
-#   2. Enter main loop at LOOP_INTERVAL (100ms)
+#   2. Enter main loop at LOOP_INTERVAL (20ms)
 #   3. Each tick:
 #       a. Read sensors (gas instant, temp from cache)
 #       b. Apply sim flags via fusion engine
@@ -51,7 +51,7 @@ signal.signal(signal.SIGTERM, _handle_signal)
 
 # Console logging helper
 # How many loop ticks between console log lines (avoid spamming terminal)
-LOG_EVERY_N_TICKS = 10 # 10 ticks × 100ms = log every ~1 second
+LOG_EVERY_N_TICKS = 50 # 50 ticks × 20ms = log every ~1 second
 
 def _now_ms() -> str:
     """Return current time as HH:MM:SS:mmm"""
@@ -102,7 +102,7 @@ def main():
     mqtt = MQTTClient()
 
     print("[Main] Initialising latency logger...")
-    logger = LatencyLogger()
+    logger = LatencyLogger(enabled=True)
 
     start_time = time.time()
     tick = 0
@@ -141,7 +141,7 @@ def main():
             result = evaluate(
                 gas_detected = gas_detected,
                 temp_flagged = temp_flagged,
-                vision_confidence = mqtt.vision_confidence, # live Jetson AI data
+                vision_confidence = mqtt.vision_confidence, # placeholder until Jetson integrated
             )
             # Attach raw avg_temp for logging/MQTT (fusion doesn't read it directly)
             result.raw_avg_temp = avg_temp
@@ -159,6 +159,7 @@ def main():
             if flags.get("manual_reset"):
                 if result.decision != FireDecision.FIRE and not flags.get("manual_alarm"):
                     _alarm_latched = False
+                    mqtt.vision_detected_at = None
                     print("[Main] Fire latch reset - system returning to normal")
                 else:
                     print("[Main] Reset ignored - fire condition still active")
@@ -166,8 +167,14 @@ def main():
 
             # 5. Latch fire state
             # Once FIRE is reached, hold it until manually reset
+            _prev_latched = _alarm_latched
             if result.decision == FireDecision.FIRE:
                 _alarm_latched = True
+
+            # Log camera -> actuator latency on first latch transition
+            if not _prev_latched and _alarm_latched and mqtt.vision_detected_at is not None:
+                delay_ms = (time.perf_counter() - mqtt.vision_detected_at) * 1000
+                print(f"[Main] *** TRIGGER LATENCY (vision -> alarm): {delay_ms:.1f}ms ***")
 
             # 6. Drive alarm from fusion decision + latch
             if _alarm_latched:
@@ -208,6 +215,9 @@ def main():
             mqtt.publish_status(result, door_state, uptime)
 
             logger.mark("mqtt_publish")
+
+            # Record async network transit value from MQTT callback (0.0 if no t_sent received yet)
+            logger.record("mqtt_transit", mqtt.mqtt_transit_ms)
 
             # 11. Console log (throttled)
             _log(tick, result, door_state, door_event, _alarm_latched)

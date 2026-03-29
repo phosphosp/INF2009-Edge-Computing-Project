@@ -24,6 +24,7 @@ class MQTTClient:
         self._client = mqtt.Client(client_id=config.MQTT_CLIENT_ID)
         self._connected = False
         self._last_status_time = 0.0
+        self.vision_confidence = 0.0
 
         # Track last published decision to avoid duplicate event publishes
         self._last_decision = None
@@ -32,12 +33,15 @@ class MQTTClient:
         self.vision_confidence = 0.0
         # Last measured MQTT transit time (Jetson publish -> Pi receive), ms
         self.mqtt_transit_ms: float = 0.0
+        # Timestamp (perf_counter) when vision first crossed detection threshold
+        # Used to measure camera -> actuator latency
+        self.vision_detected_at: float | None = None
 
         # Callbacks
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message
-        
+
         # Optional auth/TLS settings for cloud brokers
         if config.MQTT_USERNAME:
             self._client.username_pw_set(
@@ -76,13 +80,37 @@ class MQTTClient:
         if rc == 0:
             self._connected = True
             print(f"[MQTT] Connected to broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
-            
-            # Subscribe to vision AI topic on startup
-            self._client.subscribe(config.MQTT_TOPIC_VISION)
+            client.subscribe(config.MQTT_TOPIC_VISION, qos=1)
             print(f"[MQTT] Subscribed to {config.MQTT_TOPIC_VISION}")
         else:
             self._connected = False
             print(f"[MQTT] Connection refused - rc={rc}")
+
+    def _on_message(self, client, userdata, msg):
+        if msg.topic != config.MQTT_TOPIC_VISION:
+            return
+        recv_wall = time.time()
+        recv_perf = time.perf_counter()
+        try:
+            payload = json.loads(msg.payload.decode())
+            confidence = float(payload.get("confidence", payload.get("fire_confidence", 0.0)))
+            self.vision_confidence = max(0.0, min(1.0, confidence))
+            # Measure network transit time using Jetson-embedded send timestamp
+            t_sent = payload.get("t_sent")
+            if t_sent:
+                self.mqtt_transit_ms = (recv_wall - t_sent) * 1000
+            # Track first moment vision crosses detection threshold
+            prev_detected = self.vision_detected_at is not None
+            if self.vision_confidence >= 0.5 and self.vision_detected_at is None:
+                self.vision_detected_at = recv_perf
+                transit_str = f"  network_transit={self.mqtt_transit_ms:.1f}ms" if t_sent else ""
+                print(f"[MQTT] *** FIRE msg received  confidence={self.vision_confidence:.2f}{transit_str} ***")
+            elif self.vision_confidence < 0.5:
+                if prev_detected:
+                    print(f"[MQTT] Vision confidence dropped ({self.vision_confidence:.2f}) - detection cleared")
+                self.vision_detected_at = None
+        except Exception as e:
+            print(f"[MQTT] Failed to parse vision message: {e}")
 
     def _on_disconnect(self, client, userdata, rc):
         self._connected = False
@@ -110,22 +138,6 @@ class MQTTClient:
     @property
     def connected(self) -> bool:
         return self._connected
-
-    def _on_message(self, client, userdata, msg):
-        """Callback for received messages (Jetson -> Pi)"""
-        recv_time = time.time()
-        try:
-            if msg.topic == config.MQTT_TOPIC_VISION:
-                payload = json.loads(msg.payload.decode())
-                # Update local confidence value used by main.py fusion loop
-                self.vision_confidence = float(payload.get("confidence", 0.0))
-                # Measure MQTT transit time using Jetson-embedded send timestamp
-                t_sent = payload.get("t_sent")
-                if t_sent:
-                    self.mqtt_transit_ms = (recv_time - t_sent) * 1000
-                    print(f"[MQTT] Vision msg transit: {self.mqtt_transit_ms:.2f}ms  confidence={self.vision_confidence:.2f}")
-        except Exception as e:
-            print(f"[MQTT] Error parsing incoming vision message: {e}")
 
     # Publishing
     def publish_event(self, result: FusionResult, door_state: str):

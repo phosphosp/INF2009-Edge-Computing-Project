@@ -19,11 +19,12 @@ _CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs
 
 
 class LatencyLogger:
-    def __init__(self, csv_path: str = _CSV_PATH, enabled: bool = True):
+    def __init__(self, csv_path: str = _CSV_PATH, enabled: bool = False):
         self.enabled = enabled
         self._tick = 0
         self._loop_start = 0.0
-        self._marks: dict[str, float] = {} # stage -> absolute timestamp
+        self._marks: dict[str, float] = {} # stage -> delta ms since last mark
+        self._values: dict[str, float] = {} # stage -> raw ms value (not a delta)
         self._last_mark_time = 0.0 # for delta calculation
 
         # Rolling windows per stage: stage -> deque of ms values
@@ -41,15 +42,15 @@ class LatencyLogger:
     # CSV initialisation
     def _init_csv(self):
         os.makedirs(os.path.dirname(self._csv_path), exist_ok=True)
-        write_header = not os.path.exists(self._csv_path)
-        self._csv_file = open(self._csv_path, "a", newline="", buffering=1)
+        self._csv_file = open(self._csv_path, "w", newline="", buffering=8192)
+        write_header = True
         self._csv_writer = csv.writer(self._csv_file)
         if write_header:
             self._csv_writer.writerow([
                 "tick", "timestamp",
                 "gas_read_ms", "temp_read_ms", "fusion_ms",
                 "vision_ms", "actuation_ms", "mqtt_publish_ms",
-                "total_loop_ms", "budget_ok"
+                "mqtt_transit_ms", "total_loop_ms", "budget_ok"
             ])
 
     # Public API
@@ -64,6 +65,7 @@ class LatencyLogger:
         self._loop_start = time.perf_counter()
         self._last_mark_time = self._loop_start
         self._marks = {}
+        self._values = {}
 
     def mark(self, stage: str):
         """
@@ -81,6 +83,18 @@ class LatencyLogger:
         if stage not in self._rolling:
             self._rolling[stage] = deque(maxlen=_ROLLING_WINDOW)
         self._rolling[stage].append(delta_ms)
+
+    def record(self, key: str, value_ms: float):
+        """
+        Store a raw ms value (not a delta) for the current tick.
+        Use for async measurements like MQTT transit time.
+        """
+        if not self.enabled:
+            return
+        self._values[key] = value_ms
+        if key not in self._rolling:
+            self._rolling[key] = deque(maxlen=_ROLLING_WINDOW)
+        self._rolling[key].append(value_ms)
 
     def finish(self):
         """
@@ -112,6 +126,7 @@ class LatencyLogger:
                 round(self._marks.get("vision",        0.0), 3),
                 round(self._marks.get("actuation",     0.0), 3),
                 round(self._marks.get("mqtt_publish",  0.0), 3),
+                round(self._values.get("mqtt_transit", 0.0), 3),
                 round(total_ms, 3),
                 budget_ok,
             ])
@@ -124,8 +139,8 @@ class LatencyLogger:
     def _print_summary(self, total_ms: float, budget_ok: bool):
         status = "OK" if budget_ok else "OVER BUDGET"
 
-        def _fmt(stage: str) -> str:
-            val = self._marks.get(stage, 0.0)
+        def _fmt(stage: str, src: str = "mark") -> str:
+            val = self._values.get(stage, 0.0) if src == "value" else self._marks.get(stage, 0.0)
             avg = self._avg(stage)
             worst = self._worst(stage)
             return f"{val:6.2f}ms  (avg {avg:5.2f}  worst {worst:5.2f})"
@@ -140,9 +155,9 @@ class LatencyLogger:
         print(f"  gas_read     : {_fmt('gas_read')}")
         print(f"  temp_read    : {_fmt('temp_read')}")
         print(f"  fusion       : {_fmt('fusion')}")
-        print(f"  vision       : {_fmt('vision')}")
         print(f"  actuation    : {_fmt('actuation')}")
         print(f"  mqtt_publish : {_fmt('mqtt_publish')}")
+        print(f"  mqtt_transit : {_fmt('mqtt_transit', src='value')}  (Jetson->Pi network)")
 
         if not budget_ok:
             print(f"  *** WARNING: loop exceeded 100ms budget ({total_ms:.2f}ms) ***")
