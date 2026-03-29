@@ -91,6 +91,11 @@ MQTT_TOPIC_STATUS = os.getenv(
     f"{BASE_TOPIC}/status"
 )
 
+MQTT_TOPIC_VISION = os.getenv(
+    "MQTT_TOPIC_VISION",
+    f"{BASE_TOPIC}/vision"
+)
+
 MQTT_STATUS_INTERVAL = 10 # seconds between heartbeat publishes
 
 # Simulation Settings

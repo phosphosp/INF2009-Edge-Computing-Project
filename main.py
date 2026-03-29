@@ -141,7 +141,7 @@ def main():
             result = evaluate(
                 gas_detected = gas_detected,
                 temp_flagged = temp_flagged,
-                vision_confidence = 0.0, # placeholder until Jetson integrated
+                vision_confidence = mqtt.vision_confidence, # live Jetson AI data
             )
             # Attach raw avg_temp for logging/MQTT (fusion doesn't read it directly)
             result.raw_avg_temp = avg_temp

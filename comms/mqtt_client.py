@@ -28,9 +28,13 @@ class MQTTClient:
         # Track last published decision to avoid duplicate event publishes
         self._last_decision = None
 
+        # Store latest vision result from Jetson
+        self.vision_confidence = 0.0
+
         # Callbacks
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
+        self._client.on_message = self._on_message
         
         # Optional auth/TLS settings for cloud brokers
         if config.MQTT_USERNAME:
@@ -70,6 +74,10 @@ class MQTTClient:
         if rc == 0:
             self._connected = True
             print(f"[MQTT] Connected to broker at {config.MQTT_BROKER}:{config.MQTT_PORT}")
+            
+            # Subscribe to vision AI topic on startup
+            self._client.subscribe(config.MQTT_TOPIC_VISION)
+            print(f"[MQTT] Subscribed to {config.MQTT_TOPIC_VISION}")
         else:
             self._connected = False
             print(f"[MQTT] Connection refused - rc={rc}")
@@ -100,6 +108,16 @@ class MQTTClient:
     @property
     def connected(self) -> bool:
         return self._connected
+
+    def _on_message(self, client, userdata, msg):
+        """Callback for received messages (Jetson -> Pi)"""
+        try:
+            if msg.topic == config.MQTT_TOPIC_VISION:
+                payload = json.loads(msg.payload.decode())
+                # Update local confidence value used by main.py fusion loop
+                self.vision_confidence = float(payload.get("confidence", 0.0))
+        except Exception as e:
+            print(f"[MQTT] Error parsing incoming vision message: {e}")
 
     # Publishing
     def publish_event(self, result: FusionResult, door_state: str):
