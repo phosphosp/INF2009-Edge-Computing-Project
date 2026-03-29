@@ -30,6 +30,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 MODEL_PATH = os.path.join(ROOT_DIR, "fire_orin_v1", "fire_orin_best.engine")
 
+# Latency log — reset on every script start (open in write mode)
+LATENCY_LOG_PATH = os.path.join(SCRIPT_DIR, "first_detection_latency.txt")
+with open(LATENCY_LOG_PATH, "w") as _f:
+    _f.write(f"Jetson first-detection latency log\nScript started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+_first_detection_logged = False
+
 CONF_THRESHOLD = 0.4
 HISTORY_WINDOW = 5
 ALERT_THRESHOLD = 1
@@ -100,15 +106,6 @@ while cap.isOpened():
     results = model.predict(frame, conf=CONF_THRESHOLD, verbose=False)
     inference_done = time.time()
 
-    # Calculate metrics
-    capture_ms = (capture_done - loop_start) * 1000
-    inference_ms = (inference_done - capture_done) * 1000
-    fps = 1.0 / (time.time() - loop_start)
-
-    # Print performance every 30 frames (about once a second)
-    if int(time.time() % 1.0) == 0:
-        print(f"📊 Perf: Capture {capture_ms:.1f}ms | Inference {inference_ms:.1f}ms | {fps:.1f} FPS", end='\r')
-
     detected_in_frame = False
     for box in results[0].boxes:
         if box.cls[0] in [0, 1]: # 0=fire, 1=smoke
@@ -122,15 +119,48 @@ while cap.isOpened():
 
     # --- NETWORK UPDATE ---
     # Send confidence to the Pi (1.0 if confirmed, 0.0 otherwise)
-    payload = {"confidence": 1.0 if is_fire_confirmed else 0.0}
+    # t_sent is embedded so the Pi can measure MQTT transit time
+    payload = {
+        "confidence": 1.0 if is_fire_confirmed else 0.0,
+        "t_sent": time.time(),
+    }
+    mqtt_start = time.time()
     try:
-        # Debug: Print when we attempt to send a confirmation
         if is_fire_confirmed:
             print(f"🔥 ATTENTION: Sending Fire Alert to Pi! Queue: {list(detection_history)}")
-        
         mqtt_client.publish(MQTT_TOPIC_VISION, json.dumps(payload))
     except Exception as e:
         print(f"⚠️ MQTT Publish failed: {e}")
+    mqtt_done = time.time()
+
+    # Calculate metrics
+    capture_ms  = (capture_done - loop_start) * 1000
+    inference_ms = (inference_done - capture_done) * 1000
+    mqtt_ms     = (mqtt_done - mqtt_start) * 1000
+    total_jetson_ms = (mqtt_done - loop_start) * 1000
+    fps = 1.0 / (mqtt_done - loop_start)
+
+    # One-time write after first confirmed detection + publish
+    if is_fire_confirmed and not _first_detection_logged:
+        _first_detection_logged = True
+        with open(LATENCY_LOG_PATH, "a") as _f:
+            _f.write(f"First detection at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            _f.write(f"  capture_ms     : {capture_ms:.3f}\n")
+            _f.write(f"  inference_ms   : {inference_ms:.3f}\n")
+            _f.write(f"  mqtt_publish_ms: {mqtt_ms:.3f}\n")
+            _f.write(f"  total_jetson_ms: {total_jetson_ms:.3f}\n")
+        print(f"[Latency] First detection logged to {LATENCY_LOG_PATH}")
+
+    # Print performance every 30 frames (about once a second)
+    if int(time.time() % 1.0) == 0:
+        print(
+            f"📊 Jetson: Capture {capture_ms:.1f}ms | "
+            f"Inference {inference_ms:.1f}ms | "
+            f"MQTT pub {mqtt_ms:.1f}ms | "
+            f"Total {total_jetson_ms:.1f}ms | "
+            f"{fps:.1f} FPS",
+            end='\r'
+        )
 
     # --- LOCAL UI ---
     if is_fire_confirmed:

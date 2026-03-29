@@ -30,6 +30,8 @@ class MQTTClient:
 
         # Store latest vision result from Jetson
         self.vision_confidence = 0.0
+        # Last measured MQTT transit time (Jetson publish -> Pi receive), ms
+        self.mqtt_transit_ms: float = 0.0
 
         # Callbacks
         self._client.on_connect = self._on_connect
@@ -111,11 +113,17 @@ class MQTTClient:
 
     def _on_message(self, client, userdata, msg):
         """Callback for received messages (Jetson -> Pi)"""
+        recv_time = time.time()
         try:
             if msg.topic == config.MQTT_TOPIC_VISION:
                 payload = json.loads(msg.payload.decode())
                 # Update local confidence value used by main.py fusion loop
                 self.vision_confidence = float(payload.get("confidence", 0.0))
+                # Measure MQTT transit time using Jetson-embedded send timestamp
+                t_sent = payload.get("t_sent")
+                if t_sent:
+                    self.mqtt_transit_ms = (recv_time - t_sent) * 1000
+                    print(f"[MQTT] Vision msg transit: {self.mqtt_transit_ms:.2f}ms  confidence={self.vision_confidence:.2f}")
         except Exception as e:
             print(f"[MQTT] Error parsing incoming vision message: {e}")
 
