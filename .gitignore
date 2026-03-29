@@ -2,4 +2,5 @@ env/
 .env
 __pycache__/
 /jetson/first_detection_latency.txt
-
+/fire_dataset/*
+/fire_dataset

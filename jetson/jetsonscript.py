@@ -35,6 +35,8 @@ LATENCY_LOG_PATH = os.path.join(SCRIPT_DIR, "first_detection_latency.txt")
 with open(LATENCY_LOG_PATH, "w") as _f:
     _f.write(f"Jetson first-detection latency log\nScript started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 _first_detection_logged = False
+_detection_count = 0       # skip first N confirmed detections before logging
+_DETECTION_SKIP = 3        # ignore first 3 detections (warm-up artifact)
 
 CONF_THRESHOLD = 0.4
 HISTORY_WINDOW = 5
@@ -92,6 +94,19 @@ if not cap.isOpened():
     print("❌ ERROR: Could not open camera with GStreamer pipeline. Please check your camera connection or nvargus-daemon.")
     exit(1)
 
+print("🔥 Warming up TensorRT engine with real camera frames...")
+_WARMUP_FRAMES = 10
+_warmed = 0
+while _warmed < _WARMUP_FRAMES:
+    ret, _wframe = cap.read()
+    if not ret:
+        break
+    model.predict(_wframe, conf=CONF_THRESHOLD, verbose=False)
+    _warmed += 1
+    print(f"  Warm-up {_warmed}/{_WARMUP_FRAMES}", end='\r')
+print("\n✅ Warm-up done.")
+del _wframe, _warmed
+
 print("🚀 Starting Stream...")
 
 while cap.isOpened():
@@ -141,7 +156,10 @@ while cap.isOpened():
     fps = 1.0 / (mqtt_done - loop_start)
 
     # One-time write after first confirmed detection + publish
-    if is_fire_confirmed and not _first_detection_logged:
+    # Skip the first _DETECTION_SKIP detections to avoid warm-up artifacts
+    if is_fire_confirmed:
+        _detection_count += 1
+    if is_fire_confirmed and _detection_count > _DETECTION_SKIP and not _first_detection_logged:
         _first_detection_logged = True
         with open(LATENCY_LOG_PATH, "a") as _f:
             _f.write(f"First detection at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -167,6 +185,7 @@ while cap.isOpened():
         cv2.putText(frame, "🔥 FIRE ALERT CONFIRMED", (50, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
+# commented out because it is taking up a lot of resources
     annotated_frame = results[0].plot()
     cv2.imshow("Jetson Fire Detection", annotated_frame)
     if cv2.waitKey(1) & 0xFF == ord('q'): break
