@@ -1,4 +1,7 @@
 import os
+# Ensure CUDA libraries can be found by PyTorch and ONNX Runtime
+os.environ["LD_LIBRARY_PATH"] = f"/usr/local/cuda-12.6/lib64:/usr/local/cuda/lib64:{os.environ.get('LD_LIBRARY_PATH', '')}"
+
 import sys
 import importlib.util
 
@@ -25,11 +28,11 @@ MQTT_TOPIC_VISION = "fire_detection/vision"
 # Path logic to find the model from either the root or /jetson folder
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
-MODEL_PATH = os.path.join(ROOT_DIR, "fire_orin_v1", "fire_orin_best.onnx")
+MODEL_PATH = os.path.join(ROOT_DIR, "fire_orin_v1", "fire_orin_best.engine")
 
 CONF_THRESHOLD = 0.4
 HISTORY_WINDOW = 5
-ALERT_THRESHOLD = 3
+ALERT_THRESHOLD = 1
 
 # 1. Initialize MQTT for communication with Raspberry Pi
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
