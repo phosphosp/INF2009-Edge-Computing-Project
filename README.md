@@ -4,36 +4,40 @@
 
 ```
 INF2009-Edge-Computing-Project/
-├── main.py                        # Orchestrator
-├── config.py                      # All pins, thresholds, timing
 │
-├── sensors/
-│   ├── gas_sensor.py              # MQ2 digital read + debounce
-│   └── temp_sensor.py             # DHT22 background thread + averaging
-│
-├── actuators/
-│   ├── alarm.py                   # LED + buzzer (CLEAR / WARNING / FIRE states)
-│   └── smart_door.py              # RFID reader + servo (normal / fire modes)
-│
-├── utils/
-│   ├── fusion.py                  # Weighted score engine + sim override injection
-│   └── latency_logger.py          # Loop-stage timing logger (console + CSV)
-│
-├── comms/
-│   └── mqtt_client.py             # Non-blocking MQTT publisher
-│
-├── sim/
-│   ├── sim_flags.py               # Flag file read/write API
-│   └── sim_gui.py                 # Demo GUI - run in separate terminal
-│
-├── tests/
-│   ├── test_sensors.py
-│   ├── test_actuators.py
-│   ├── test_fusion.py
-│   └── test_mqtt.py
-│
-├── logs/
-│   └── latency_log.csv            # Runtime latency measurements
+├── rpi/                           # Raspberry Pi edge node
+│   ├── main.py                    # Orchestrator
+│   ├── config.py                  # All pins, thresholds, timing
+│   ├── .env.example               # Environment variable template
+│   │
+│   ├── sensors/
+│   │   ├── gas_sensor.py          # MQ2 digital read + debounce
+│   │   └── temp_sensor.py         # DHT22 background thread + averaging
+│   │
+│   ├── actuators/
+│   │   ├── alarm.py               # LED + buzzer (CLEAR / WARNING / FIRE states)
+│   │   └── smart_door.py          # RFID reader + servo (normal / fire modes)
+│   │
+│   ├── utils/
+│   │   ├── fusion.py              # Weighted score engine + sim override injection
+│   │   └── latency_logger.py      # Loop-stage timing logger (console + CSV)
+│   │
+│   ├── comms/
+│   │   └── mqtt_client.py         # Dual-broker MQTT (local: Jetson vision, cloud: AWS)
+│   │
+│   ├── sim/
+│   │   ├── sim_flags.py           # Flag file read/write API
+│   │   └── sim_gui.py             # Demo GUI - run in separate terminal
+│   │
+│   ├── tests/
+│   │   ├── test_sensors.py
+│   │   ├── test_actuators.py
+│   │   ├── test_fusion.py
+│   │   ├── test_mqtt.py
+│   │   └── test_latency.py
+│   │
+│   └── logs/
+│       └── latency_log.csv        # Runtime latency measurements
 │
 └── cloud/
     └── aws/                       # Dockerized cloud pipeline + dashboard
@@ -97,11 +101,17 @@ scp -r "C:\Users\example\INF2009-Edge-Computing-Project" <Raspberry Pi Name>@:<R
 ```bash
 Create Virtual Environment in RPI:
 
-cd INF2009-Edge-Computing-Project
+cd INF2009-Edge-Computing-Project/rpi
 python -m venv venv
 
 Activate venv:
 source venv/bin/activate
+```
+
+### 5. Configure environment
+```bash
+cp .env.example .env
+# Edit .env and set MQTT_CLOUD_BROKER, AUTHORISED_CARDS, etc.
 ```
 
 ---
@@ -110,6 +120,9 @@ source venv/bin/activate
 
 ### Full system
 ```bash
+# From the rpi/ directory:
+cd rpi
+
 # Terminal 1 - main system
 python main.py
 
@@ -122,16 +135,18 @@ mosquitto_sub -h localhost -t "fire_detection/#" -v
 
 ### Individual component tests
 ```bash
-python test_sensors.py      # gas + temp only
-python test_actuators.py    # LED, buzzer, servo, RFID only
-python test_fusion.py       # scoring logic, no hardware needed
-python test_mqtt.py         # MQTT publish/subscribe
+# From the rpi/ directory:
+python tests/test_sensors.py      # gas + temp only
+python tests/test_actuators.py    # LED, buzzer, servo, RFID only
+python tests/test_fusion.py       # scoring logic, no hardware needed
+python tests/test_mqtt.py         # MQTT publish/subscribe
+python tests/test_latency.py      # latency benchmark
 ```
 
 ### Latency logging
 Latency logging is enabled in `main.py` via `LatencyLogger()` and records stage timings every loop tick.
 
-- CSV output: `logs/latency_log.csv`
+- CSV output: `rpi/logs/latency_log.csv`
 - Console summary: printed every ~5 seconds (throttled)
 - Loop budget target: 100ms (`budget_ok=True/False` in CSV)
 
@@ -140,8 +155,10 @@ Logged stages:
 - `gas_read`
 - `temp_read`
 - `fusion`
+- `vision`
 - `actuation`
 - `mqtt_publish`
+- `mqtt_transit_ms` (async — Jetson→Pi network transit time)
 - `total_loop_ms`
 
 ---
@@ -156,7 +173,7 @@ Logged stages:
 | Gas + Temp                | 0.6   | FIRE     |
 | Gas + Temp + Vision (1.0) | 1.0   | FIRE     |
 
-Weights: Gas=0.4, Temp=0.2, Vision=0.4 (Vision=0.0 until Jetson integrated)
+Weights: Gas=0.4, Temp=0.2, Vision=0.4
 Fire threshold: 0.5 - tune in config.py
 
 ---
@@ -175,23 +192,6 @@ Fire threshold: 0.5 - tune in config.py
 
 ---
 
-## Integrating Jetson AI (future)
-
-In `main.py`, replace:
-```python
-result = evaluate(gas_detected, temp_flagged, vision_confidence=0.0)
-```
-With:
-```python
-vision_conf = jetson_client.get_latest_confidence()
-result = evaluate_with_vision(gas_detected, temp_flagged, vision_conf)
-```
-
-Import `evaluate_with_vision` from `utils.fusion` - the function already exists,
-weights are already allocated, no other changes needed.
-
----
-
 ## Cloud Dashboard Deployment (AWS)
 
 Cloud logging + visualisation stack is available in:
@@ -204,6 +204,7 @@ It deploys:
 - Telegraf (MQTT -> time-series pipeline)
 - InfluxDB (logging storage)
 - Grafana (dashboard)
+- Telegram Bridge (FIRE alert notifications)
 
 See setup guide:
 
